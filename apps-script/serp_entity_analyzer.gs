@@ -12,12 +12,13 @@
  * Why a heuristic instead of real NLP?
  *   This is a 1-day MVP. Chinese bigrams + English tokens + stopword filter
  *   is intentionally crude — it proves the wiring, not the linguistics.
- *   See README_SEO_MVP.md "MVP tradeoffs".
+ *   See README.md "What is still intentionally lightweight".
  *
  * TODO (post-MVP, intentionally NOT in scope for this demo):
  *   - Replace heuristic with Cloud NL API or LLM embeddings
  *   - Batch process more than one pending row per run
  *   - Dedupe on (keyword, link) so reruns don't pile up rows
+ *   - Persist theme charts to external storage automatically
  */
 
 // ---- Config (script-global; intentionally namespaced with SERP_ to avoid
@@ -30,7 +31,7 @@ var SERP_RESULTS_SHEET = 'SERP_Results';
 // must match the sheet exactly. Validated at runtime by assertSerpHeaders_.
 var SERP_RESULTS_HEADERS = [
   'timestamp', 'input_row', 'keyword', 'position', 'title',
-  'link', 'snippet', 'top_entities', 'token_count', 'mode'
+  'link', 'snippet', 'top_entities', 'entity_count', 'entity_theme', 'mode'
 ];
 
 function analyzeSerpEntities() {
@@ -78,7 +79,8 @@ function analyzeSerpEntities() {
         result.link || '',
         result.snippet || '',
         entitySummary.topEntities.join(', '),
-        entitySummary.tokenCount,
+        entitySummary.entityCount,
+        entitySummary.entityTheme,
         SERP_MOCK_MODE ? 'mock' : 'live'
       ]);
     });
@@ -178,8 +180,35 @@ function summarizeEntities_(keyword, title, snippet) {
 
   return {
     topEntities: topEntities,
-    tokenCount: Object.keys(counts).length
+    entityCount: Object.keys(counts).length,
+    entityTheme: classifySerpTheme_(text, counts)
   };
+}
+
+function classifySerpTheme_(text, counts) {
+  var buckets = [
+    { label: 'pricing', terms: ['價格', '費用', '便宜', '資費', '預算', 'price', 'cheap', 'plan'] },
+    { label: 'comparison', terms: ['比較', '差異', '推薦', '排行', '評比', 'review', 'compare', 'best'] },
+    { label: 'features', terms: ['速度', '流量', '網速', '方案', '吃到飽', 'feature', 'speed', 'data'] },
+    { label: 'audience', terms: ['學生', '家庭', '長輩', '小型犬', '新手', 'senior', 'family', 'student'] },
+    { label: 'trust', terms: ['評價', '心得', '實測', '品牌', '口碑', 'brand', 'rating', 'test'] }
+  ];
+  var haystack = String(text || '').toLowerCase() + ' ' + Object.keys(counts).join(' ').toLowerCase();
+  var best = { label: 'general', score: 0 };
+
+  buckets.forEach(function(bucket) {
+    var score = 0;
+    bucket.terms.forEach(function(term) {
+      if (haystack.indexOf(String(term).toLowerCase()) !== -1) {
+        score++;
+      }
+    });
+    if (score > best.score) {
+      best = { label: bucket.label, score: score };
+    }
+  });
+
+  return best.label;
 }
 
 function extractChineseBigrams_(text) {
@@ -278,6 +307,14 @@ function logSerp_(message) {
   Logger.log('[SERP] ' + message);
 }
 
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('SEO MVP')
+    .addItem('Run SERP Analyzer', 'analyzeSerpEntities')
+    .addItem('Run SEO Generator', 'generateSeoContent')
+    .addToUi();
+}
+
 /**
  * Validate that the first row of `sheet` contains exactly `expected`
  * (case-insensitive). Throws a clear error if the user reordered or renamed
@@ -292,7 +329,7 @@ function assertSerpHeaders_(sheet, expected) {
       throw new Error(
         'Header mismatch on "' + sheet.getName() + '" col ' + (i + 1) +
         ': expected "' + expected[i] + '", got "' + got + '". ' +
-        'Fix the sheet headers to match README_SEO_MVP.md schema.'
+        'Fix the sheet headers to match README.md sheet schema.'
       );
     }
   }

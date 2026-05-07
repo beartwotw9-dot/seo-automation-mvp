@@ -1,65 +1,82 @@
 # SEO Automation MVP
 
-> A 1-day, mock-first SEO automation side project built with Google Sheets + Apps Script.
+> A one-day, mock-first SEO automation side project built for live demo: Google Sheets + Apps Script + n8n + Supabase + a tiny Vercel UI.
 
-This repo is the cleaned-up interview version of a small automation MVP: take a keyword from a Google Sheet, inspect the top SERP results, extract recurring entities, then generate a structured SEO article brief with image prompts and quality notes.
+This project turns two repetitive SEO tasks into a compact end-to-end workflow:
 
-The point is not "AI magic." The point is reducing a boring repeated workflow into something a non-technical teammate can actually use in the tool they already live in: Google Sheets.
+1. analyze Google's first-page results for any keyword and count/group entities
+2. generate a draft SEO article package from keyword + product + scenario
 
-## MVP scope
+It is intentionally an interview-ready MVP, not a polished SaaS product.
 
-This project intentionally does four things only:
+## What the MVP does
 
-- read the first pending SERP task from `SERP_Input`
-- write top-10 SERP rows plus heuristic entities into `SERP_Results`
-- read the first pending SEO task from `SEO_Input`
-- write one article package into `SEO_Output`
+### 1. SERP entity analyzer
 
-Everything else is deliberately out of scope for the demo.
+- input any keyword from `SERP_Input`
+- fetch top-10 organic results from SerpAPI or ValueSERP
+- support full offline demo with `SERP_MOCK_MODE=true`
+- extract simple Chinese/English entities with a heuristic tokenizer
+- count entities per article
+- assign a lightweight theme group per result
+- write all 10 results into `SERP_Results`
 
-## Why Google Sheets + Apps Script
+### 2. SEO content generator
 
-This was a product choice, not just a fast hack.
+- input keyword + product + scenario + optional output folder from `SEO_Input`
+- generate an article, 3 image prompts, quality notes, and a revised article
+- insert image markers at 25% / 50% / 75%
+- output placeholder image URLs for demo stability
+- support full offline demo with `SEO_MOCK_MODE=true`
+- write the package into `SEO_Output`
 
-- The target user is a non-technical SEO/content teammate.
-- Google Sheets already acts like their inbox, backlog, and results table.
-- Apps Script gives zero-infra automation with no backend, auth, or deployment overhead.
-- For an MVP, "the sheet is the UI" is a strength, not a limitation.
+### 3. Supporting layers
 
-The tradeoff is obvious: weaker schema enforcement, Apps Script runtime limits, and fewer engineering niceties than a full app. For a one-day demoable MVP, that tradeoff is worth it.
+- `n8n/` contains an importable workflow that mirrors the same read/process/write flow
+- `scripts/generate_entity_report.py` turns a CSV export of `SERP_Results` into a visual entity report
+- `supabase/schema.sql` adds minimal storage for run logs
+- `web/` is a small Vercel-ready control panel with Supabase auth
 
-## System architecture
+## Why this stack
 
-```text
-Google Sheet
-├── SERP_Input   -> analyzeSerpEntities()  -> SERP_Results
-└── SEO_Input    -> generateSeoContent()   -> SEO_Output
+### Why Google Sheets + Apps Script
 
-SERP flow:
-pending row -> SERP API or mock data -> top-10 organic results
--> Chinese bigrams + English tokens + stopword filter
--> append 10 rows -> mark source row done/error
+Because the actual user in this story is not an engineer.
 
-SEO flow:
-pending row -> structured prompt -> OpenAI/Anthropic or mock response
--> parse ===SECTION=== blocks
--> append article + 3 image prompts + quality notes
--> mark source row done/error
+Google Sheets already works as:
 
-Optional next-step path:
-n8n workflow mirrors the same read -> process -> write flow.
-```
+- the request inbox
+- the operator console
+- the results table
 
-## Mock-first design
+Apps Script makes the automation deployable in minutes with no server, no auth setup, and no DevOps overhead.
 
-The most important product decision here is that the demo works with zero API keys.
+### Why mock-first
+
+Because live demos fail in the most boring ways:
+
+- missing API keys
+- network issues
+- rate limits
+- provider response drift
+
+So both core flows default to mock mode:
 
 - `SERP_MOCK_MODE=true`
 - `SEO_MOCK_MODE=true`
 
-With both flags enabled, the full demo runs offline using canned SERP results and a canned SEO response. That makes the project reliable in interviews and easy to understand without external dependencies.
+That means the whole demo can run with zero external credentials.
 
-When needed, live APIs can be enabled later through Script Properties.
+### Why Supabase + Vercel anyway
+
+Because the interview prompt also asks for deployment, storage, and login.
+
+So instead of overbuilding a full product, this repo adds the thinnest possible outer layer:
+
+- Supabase for auth and run logging
+- Vercel for a tiny control panel
+
+The Sheet and Apps Script remain the actual MVP core.
 
 ## Repo structure
 
@@ -70,41 +87,55 @@ seo-automation-mvp/
 │   └── seo_content_generator.gs
 ├── n8n/
 │   └── seo_content_generator.workflow.json
+├── scripts/
+│   └── generate_entity_report.py
+├── supabase/
+│   └── schema.sql
+├── web/
+│   ├── index.html
+│   ├── app.js
+│   ├── styles.css
+│   └── config.example.js
+├── assets/
 ├── README.md
 ├── DEMO_SCRIPT.md
 └── .gitignore
 ```
 
-## Demo flow
+## System architecture
 
-### 1. SERP entity extraction
+```text
+Google Sheet
+├── SERP_Input  -> analyzeSerpEntities() -> SERP_Results
+└── SEO_Input   -> generateSeoContent()  -> SEO_Output
 
-1. Create a `SERP_Input` sheet with the schema below.
-2. Add one row:
-   - `keyword = 狗糧推薦`
-   - `status = pending`
-3. Run `analyzeSerpEntities()`.
-4. Confirm:
-   - `SERP_Results` gets 10 rows
-   - `SERP_Input.status` becomes `done`
-   - logs show `[SERP]` progress lines
+Apps Script
+├── custom menu buttons inside Google Sheets
+├── status machine: pending -> processing -> done/error
+└── mock/live switches via Script Properties
 
-### 2. SEO content generation
+n8n
+├── manual trigger or schedule trigger
+├── read Google Sheets
+├── call SERP / LLM
+└── append results back to Sheets
 
-1. Create an `SEO_Input` sheet with the schema below.
-2. Add one row:
-   - `keyword = 狗糧推薦`
-   - `product = ProPlan`
-   - `scenario = 室內小型犬`
-   - `status = pending`
-3. Run `generateSeoContent()`.
-4. Confirm:
-   - `SEO_Output` gets 1 row
-   - article, 3 image prompts, and quality notes are filled
-   - `SEO_Input.status` becomes `done`
-   - logs show `[SEO]` progress lines
+Supabase
+├── email/password auth
+├── serp_runs table
+└── seo_runs table
 
-## Sheet schemas
+Vercel UI
+├── sign in / sign up
+├── queue SERP / SEO runs
+├── open Sheet / n8n / repo links
+└── show recent run history
+
+Python script
+└── reads SERP_Results CSV export and generates an entity report HTML chart
+```
+
+## Sheet schema
 
 ### `SERP_Input`
 
@@ -113,93 +144,161 @@ seo-automation-mvp/
 
 ### `SERP_Results`
 
-| timestamp | input_row | keyword | position | title | link | snippet | top_entities | token_count | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| timestamp | input_row | keyword | position | title | link | snippet | top_entities | entity_count | entity_theme | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 ### `SEO_Input`
 
-| keyword | product | scenario | status | error_message | updated_at |
-| --- | --- | --- | --- | --- | --- |
+| keyword | product | scenario | output_folder | status | error_message | updated_at |
+| --- | --- | --- | --- | --- | --- | --- |
 
 ### `SEO_Output`
 
-| timestamp | input_row | keyword | product | scenario | article | image_prompt_25 | image_prompt_50 | image_prompt_75 | quality_notes | mode |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-
-Header order matters because Apps Script writes rows positionally. Both scripts validate output headers at runtime before writing, so a broken sheet fails loudly instead of silently misaligning data.
+| timestamp | input_row | keyword | product | scenario | article | image_prompt_25 | image_prompt_50 | image_prompt_75 | article_with_images | image_url_25 | image_url_50 | image_url_75 | quality_notes | improvement_points | revised_article | output_folder | mode |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 ## Setup
 
-1. Open a Google Sheet.
-2. Create four tabs:
+### A. Google Sheets + Apps Script
+
+1. Create a Google Sheet with four tabs:
    - `SERP_Input`
    - `SERP_Results`
    - `SEO_Input`
    - `SEO_Output`
-3. Copy the schemas above into row 1.
-4. Open `Extensions -> Apps Script`.
-5. Paste:
+2. Copy the headers above into row 1.
+3. Open `Extensions -> Apps Script`.
+4. Paste:
    - `apps-script/serp_entity_analyzer.gs`
    - `apps-script/seo_content_generator.gs`
-6. Leave `SERP_MOCK_MODE = true` and `SEO_MOCK_MODE = true`.
-7. Run each function once to approve permissions.
+5. Leave:
+   - `SERP_MOCK_MODE = true`
+   - `SEO_MOCK_MODE = true`
+6. Run each function once to authorize permissions.
+7. Reload the sheet and use the custom menu: `SEO MVP -> Run SERP Analyzer` or `Run SEO Generator`.
 
-## Live API configuration
+### B. n8n
 
-Only needed if you want real API calls instead of the mock path.
+1. Self-host n8n or use an existing instance.
+2. Import `n8n/seo_content_generator.workflow.json`.
+3. Configure:
+   - Google Sheets credentials
+   - `SERP_API_KEY`
+   - `LLM_API_KEY`
+4. Optional:
+   - create webhook URLs and paste them into `web/config.js`
 
-| Property | Purpose |
-| --- | --- |
-| `SERP_API_KEY` | SerpAPI or ValueSERP key |
-| `SERP_PROVIDER` | `serpapi` or `valueserp` |
-| `SERP_LOCATION` | optional location override |
-| `SERP_LANGUAGE` | optional language override |
-| `SERP_COUNTRY` | optional country override |
-| `LLM_API_KEY` | OpenAI or Anthropic API key |
-| `LLM_PROVIDER` | `openai` or `anthropic` |
+### C. Supabase
 
-Set them in `Apps Script -> Project Settings -> Script Properties`.
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in SQL Editor.
+3. Enable Email auth.
+4. Copy:
+   - project URL
+   - anon key
 
-## What’s done
+### D. Vercel
 
-- mock-first SERP entity analyzer
-- mock-first SEO content generator
-- output header validation to prevent silent sheet corruption
-- status machine: `pending -> processing -> done/error`
-- execution logs for demo visibility
-- starter n8n workflow matching the same pipeline
-- interview-friendly demo script
+1. Deploy the `web/` folder as a static site on Vercel
+2. Copy `web/config.example.js` to `web/config.js`
+3. Fill in:
+   - Supabase URL
+   - Supabase anon key
+   - Google Sheet URL
+   - repo URL
+   - n8n URL
+   - optional webhook URLs
 
-## What’s intentionally not done
+## Demo flow
 
-- real NLP entity extraction
-- batch processing of multiple rows per run
-- dedupe strategy for repeated runs
-- source-row update in the n8n workflow
-- image generation itself
-- custom frontend, auth, database, or dashboard
+### SERP demo
 
-This is an MVP repo, not a production SaaS.
+1. In `SERP_Input`, add:
+   - `keyword = 4G吃到飽`
+   - `status = pending`
+2. Run `analyzeSerpEntities()`
+3. Show:
+   - top 10 results
+   - `entity_count` per row
+   - `entity_theme` grouping
+   - source row changed to `done`
 
-## Future expansion ideas
+### SEO demo
 
-- replace heuristic entities with Cloud Natural Language or LLM-based extraction
-- add batch processing with a configurable limit
-- promote the n8n workflow into a scheduled background runner
-- add structured JSON outputs for the LLM path
-- add dedupe keys for repeated jobs
+1. In `SEO_Input`, add:
+   - `keyword = 4G吃到飽`
+   - `product = 中華電信 4G 吃到飽`
+   - `scenario = 學生遠距上課與影音使用`
+   - `output_folder = telecom-content`
+   - `status = pending`
+2. Run `generateSeoContent()`
+3. Show:
+   - article
+   - image prompts
+   - inserted image markers
+   - quality notes
+   - 3 improvement points
+   - revised article
 
-## 2-minute interview demo
+### Chart demo
 
-If you only have two minutes:
+Export `SERP_Results` as CSV, then run:
 
-1. Show one pending row in `SERP_Input`.
-2. Run `analyzeSerpEntities()` and show 10 rows appear in `SERP_Results`.
-3. Show the source row changed to `done`.
-4. Show one pending row in `SEO_Input`.
-5. Run `generateSeoContent()` and show the article package appear in `SEO_Output`.
-6. End on this sentence:
+```bash
+python3 scripts/generate_entity_report.py path/to/serp_results.csv assets/entity-report.html
+```
 
-> "I chose Google Sheets + Apps Script on purpose so a non-technical teammate could use the workflow immediately, and I kept mock mode on by default so the demo is reliable even with zero API keys."
+Open `assets/entity-report.html` to show the grouped entity chart.
 
-For a full script and Q&A prep, see [DEMO_SCRIPT.md](./DEMO_SCRIPT.md).
+## 2-minute interview version
+
+If time is short:
+
+1. Open the Vercel page and show sign-in + run queue UI
+2. Open the Google Sheet and run the SERP flow
+3. Show `entity_count` and `entity_theme`
+4. Run the SEO flow and show `article_with_images`
+5. End with:
+
+> "The core workflow lives in Google Sheets + Apps Script because that is the fastest usable interface for a non-technical teammate. Supabase and Vercel are just the light outer shell for login, storage, and demo polish."
+
+## What is finished
+
+- SERP entity analyzer with arbitrary keyword input
+- entity count per result
+- lightweight theme grouping per result
+- SEO content generator with article, image prompts, quality notes, improvement points, and revised article
+- image insertion markers at 25% / 50% / 75%
+- output folder support
+- Google Sheets custom menu as a real clickable control
+- n8n starter workflow
+- Supabase schema for auth + run logging
+- Vercel-ready static UI
+- Python chart generation script
+
+## What is still intentionally lightweight
+
+- entity grouping is heuristic, not true NLP clustering
+- image URLs are placeholder demo assets, not generated creative
+- the Vercel UI logs and triggers runs, but the Sheet remains the source of truth
+- n8n still needs final credential wiring and optional row-update nodes
+- there is no full production sync loop between Apps Script, Supabase, and n8n
+
+That is deliberate. This repo is optimized for clarity, demo reliability, and product thinking under one-day constraints.
+
+## Future directions
+
+- replace heuristic entity parsing with embeddings or Cloud Natural Language
+- generate real images from prompts and upload them to storage
+- sync Apps Script outputs back into Supabase automatically
+- add scheduled batch processing
+- expand the Vercel UI into a proper dashboard
+
+## Files worth showing in an interview
+
+- `apps-script/serp_entity_analyzer.gs`
+- `apps-script/seo_content_generator.gs`
+- `n8n/seo_content_generator.workflow.json`
+- `supabase/schema.sql`
+- `web/index.html` and `web/app.js`
+- `DEMO_SCRIPT.md`

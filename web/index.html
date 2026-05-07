@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SEO Automation MVP</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Mock-first SEO operations demo</p>
+        <h1>SEO Automation MVP</h1>
+        <p class="lede">
+          A one-day, interview-ready workflow that turns keyword research and SEO drafting
+          into a Sheet-driven pipeline, with optional Supabase auth and a Vercel-hosted control panel.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-secondary" href="../README.md">Read the repo guide</a>
+          <button id="open-sheet" class="button button-secondary" type="button">Open Google Sheet</button>
+        </div>
+      </section>
+
+      <section class="grid two">
+        <article class="card">
+          <h2>1. Sign in</h2>
+          <p class="muted">Use Supabase email/password auth for the demo dashboard.</p>
+          <form id="auth-form" class="stack">
+            <label>
+              Email
+              <input id="email" type="email" placeholder="you@example.com" required>
+            </label>
+            <label>
+              Password
+              <input id="password" type="password" placeholder="••••••••" required>
+            </label>
+            <div class="inline-actions">
+              <button class="button" type="submit">Sign in</button>
+              <button id="sign-up" class="button button-secondary" type="button">Create account</button>
+              <button id="sign-out" class="button button-secondary" type="button">Sign out</button>
+            </div>
+          </form>
+          <p id="auth-status" class="status">Not signed in.</p>
+        </article>
+
+        <article class="card">
+          <h2>2. Quick links</h2>
+          <p class="muted">These links keep the live demo moving.</p>
+          <div class="stack">
+            <button id="open-repo" class="button button-secondary" type="button">Open GitHub repo</button>
+            <button id="open-n8n" class="button button-secondary" type="button">Open n8n</button>
+            <button id="open-supabase" class="button button-secondary" type="button">Open Supabase</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid two">
+        <article class="card">
+          <h2>Queue SERP run</h2>
+          <form id="serp-form" class="stack">
+            <label>
+              Keyword
+              <input id="serp-keyword" type="text" placeholder="4G吃到飽" required>
+            </label>
+            <label>
+              Output folder
+              <input id="serp-folder" type="text" placeholder="telecom-research" value="telecom-research">
+            </label>
+            <div class="inline-actions">
+              <button class="button" type="submit">Save SERP run</button>
+              <button id="trigger-serp-webhook" class="button button-secondary" type="button">Trigger n8n webhook</button>
+            </div>
+          </form>
+          <p class="hint">Stores a run record in Supabase and can optionally ping an n8n webhook.</p>
+        </article>
+
+        <article class="card">
+          <h2>Queue SEO run</h2>
+          <form id="seo-form" class="stack">
+            <label>
+              Keyword
+              <input id="seo-keyword" type="text" placeholder="4G吃到飽" required>
+            </label>
+            <label>
+              Product
+              <input id="seo-product" type="text" placeholder="中華電信 4G 吃到飽">
+            </label>
+            <label>
+              Scenario
+              <input id="seo-scenario" type="text" placeholder="學生遠距上課與影音使用">
+            </label>
+            <label>
+              Output folder
+              <input id="seo-folder" type="text" placeholder="telecom-content" value="telecom-content">
+            </label>
+            <div class="inline-actions">
+              <button class="button" type="submit">Save SEO run</button>
+              <button id="trigger-seo-webhook" class="button button-secondary" type="button">Trigger n8n webhook</button>
+            </div>
+          </form>
+          <p class="hint">Use this panel as the smallest Vercel + Supabase + auth layer around the Sheet workflow.</p>
+        </article>
+      </section>
+
+      <section class="grid two">
+        <article class="card">
+          <h2>Recent SERP runs</h2>
+          <div id="serp-runs" class="list empty">Sign in to view runs.</div>
+        </article>
+        <article class="card">
+          <h2>Recent SEO runs</h2>
+          <div id="seo-runs" class="list empty">Sign in to view runs.</div>
+        </article>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

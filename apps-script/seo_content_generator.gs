@@ -18,7 +18,7 @@
  * TODO (post-MVP, intentionally NOT in scope for this demo):
  *   - Add retry / exponential backoff on 5xx
  *   - Switch to JSON mode + schema validation
- *   - Generate the actual images (not just prompts)
+ *   - Replace placeholder image URLs with generated assets automatically
  *   - Dedupe by (keyword, product, scenario) before appending
  */
 
@@ -33,7 +33,8 @@ var SEO_OUTPUT_SHEET = 'SEO_Output';
 var SEO_OUTPUT_HEADERS = [
   'timestamp', 'input_row', 'keyword', 'product', 'scenario',
   'article', 'image_prompt_25', 'image_prompt_50', 'image_prompt_75',
-  'quality_notes', 'mode'
+  'article_with_images', 'image_url_25', 'image_url_50', 'image_url_75',
+  'quality_notes', 'improvement_points', 'revised_article', 'output_folder', 'mode'
 ];
 
 function generateSeoContent() {
@@ -57,7 +58,8 @@ function generateSeoContent() {
   var payload = {
     keyword: String(readSeoByHeader_(row, headers, 'keyword') || '').trim(),
     product: String(readSeoByHeader_(row, headers, 'product') || '').trim(),
-    scenario: String(readSeoByHeader_(row, headers, 'scenario') || '').trim()
+    scenario: String(readSeoByHeader_(row, headers, 'scenario') || '').trim(),
+    outputFolder: String(readSeoByHeader_(row, headers, 'output_folder') || 'default').trim() || 'default'
   };
 
   if (!payload.keyword) {
@@ -72,6 +74,8 @@ function generateSeoContent() {
     var prompt = buildSeoPrompt_(payload);
     var rawResponse = SEO_MOCK_MODE ? getMockSeoResponse_(payload) : callLlm_(prompt);
     var sections = parseSections_(rawResponse);
+    var imageUrls = buildImageUrls_(payload);
+    var articleWithImages = injectImageMarkers_(sections.article, imageUrls);
 
     outputSheet.appendRow([
       new Date(),
@@ -83,7 +87,14 @@ function generateSeoContent() {
       sections.image_prompt_25,
       sections.image_prompt_50,
       sections.image_prompt_75,
+      articleWithImages,
+      imageUrls.image25,
+      imageUrls.image50,
+      imageUrls.image75,
       sections.quality_notes,
+      sections.improvement_points,
+      sections.revised_article,
+      payload.outputFolder,
       SEO_MOCK_MODE ? 'mock' : 'live'
     ]);
 
@@ -107,17 +118,23 @@ function buildSeoPrompt_(payload) {
     '=== IMAGE_PROMPT_50 ===',
     '=== IMAGE_PROMPT_75 ===',
     '=== QUALITY_NOTES ===',
+    '=== IMPROVEMENT_POINTS ===',
+    '=== REVISED_ARTICLE ===',
     '',
     'Keyword: ' + payload.keyword,
     'Product: ' + (payload.product || 'N/A'),
     'Scenario: ' + (payload.scenario || 'N/A'),
+    'Output folder: ' + payload.outputFolder,
     '',
     'Requirements:',
-    '- Write a practical article in Traditional Chinese.',
+    '- Write a practical article in Traditional Chinese around 1800 Chinese characters.',
     '- Mention the keyword naturally.',
     '- Mention the product and scenario when relevant.',
     '- Keep quality notes concise and actionable.',
-    '- Image prompts should describe scenes for hero image, mid-article image, and closing image.'
+    '- Return exactly 3 improvement points in bullet form.',
+    '- Then provide a revised article that addresses those 3 improvement points.',
+    '- Image prompts should describe scenes for hero image, mid-article image, and closing image.',
+    '- The article should support image placement at 25%, 50%, and 75% positions.'
   ].join('\n');
 }
 
@@ -208,7 +225,20 @@ function getMockSeoResponse_(payload) {
     '=== QUALITY_NOTES ===',
     '- 已自然置入關鍵字',
     '- 已納入產品與使用情境',
-    '- 建議上線前補上品牌實測或價格比較資料'
+    '- 建議上線前補上品牌實測或價格比較資料',
+    '',
+    '=== IMPROVEMENT_POINTS ===',
+    '- 補強品牌差異與競品比較',
+    '- 增加更具體的購買建議與適用族群',
+    '- 補一段更明確的結論與行動建議',
+    '',
+    '=== REVISED_ARTICLE ===',
+    '# ' + payload.keyword + '完整購買指南',
+    '',
+    '如果你正在比較 ' + payload.keyword + '，除了價格，更重要的是方案是否真的符合 ' + (payload.scenario || '你的使用情境') + '。',
+    '以 ' + (payload.product || '目標產品') + ' 為例，可以先看流量、適用對象、品牌口碑與售後支援，再決定是否值得購買。',
+    '如果你是第一次選購，建議先列出預算、最在意的功能，以及是否有特定品牌偏好，這樣能更快縮小選擇範圍。',
+    '最後，挑一個你能長期使用且理解成本結構的方案，通常比只看短期促銷更重要。'
   ].join('\n');
 }
 
@@ -218,7 +248,9 @@ function parseSections_(text) {
     'IMAGE_PROMPT_25',
     'IMAGE_PROMPT_50',
     'IMAGE_PROMPT_75',
-    'QUALITY_NOTES'
+    'QUALITY_NOTES',
+    'IMPROVEMENT_POINTS',
+    'REVISED_ARTICLE'
   ];
   var sections = {};
 
@@ -234,7 +266,50 @@ function parseSections_(text) {
   if (!sections.article) {
     throw new Error('Failed to parse ARTICLE section from LLM response.');
   }
+  if (!sections.revised_article) {
+    sections.revised_article = sections.article;
+  }
   return sections;
+}
+
+function buildImageUrls_(payload) {
+  var base = 'https://dummyimage.com/1200x675/f3f4f6/111827&text=';
+  var safeKeyword = encodeURIComponent(payload.keyword || 'SEO');
+  return {
+    image25: base + safeKeyword + '+25%25',
+    image50: base + safeKeyword + '+50%25',
+    image75: base + safeKeyword + '+75%25'
+  };
+}
+
+function injectImageMarkers_(article, imageUrls) {
+  var paragraphs = String(article || '').split(/\n\s*\n/);
+  if (paragraphs.length < 4) {
+    return [
+      article,
+      '',
+      '[IMAGE_25] ' + imageUrls.image25,
+      '[IMAGE_50] ' + imageUrls.image50,
+      '[IMAGE_75] ' + imageUrls.image75
+    ].join('\n');
+  }
+
+  var insertAt = [
+    Math.max(1, Math.floor(paragraphs.length * 0.25)),
+    Math.max(1, Math.floor(paragraphs.length * 0.5)),
+    Math.max(1, Math.floor(paragraphs.length * 0.75))
+  ];
+  var markers = [
+    '[IMAGE_25] ' + imageUrls.image25,
+    '[IMAGE_50] ' + imageUrls.image50,
+    '[IMAGE_75] ' + imageUrls.image75
+  ];
+
+  for (var i = 0; i < insertAt.length; i++) {
+    var index = Math.min(paragraphs.length, insertAt[i] + i);
+    paragraphs.splice(index, 0, markers[i]);
+  }
+  return paragraphs.join('\n\n');
 }
 
 function getRequiredSeoSheet_(ss, sheetName) {
@@ -321,7 +396,7 @@ function assertSeoHeaders_(sheet, expected) {
       throw new Error(
         'Header mismatch on "' + sheet.getName() + '" col ' + (i + 1) +
         ': expected "' + expected[i] + '", got "' + got + '". ' +
-        'Fix the sheet headers to match README_SEO_MVP.md schema.'
+        'Fix the sheet headers to match README.md sheet schema.'
       );
     }
   }

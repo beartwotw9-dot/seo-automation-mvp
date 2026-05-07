@@ -25,5 +25,8 @@ token.json
 .tmp/
 tmp/
 temp/
+web/config.js
+__pycache__/
+*.pyc
 
 Thumbs.db

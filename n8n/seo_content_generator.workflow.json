@@ -1,6 +1,17 @@
 {
-  "name": "SEO Content Generator MVP",
+  "name": "SEO Automation MVP",
   "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        80
+      ]
+    },
     {
       "parameters": {
         "rule": {
@@ -35,7 +46,7 @@
         470,
         160
       ],
-      "notes": "Configure credentials and set operation to read rows."
+      "notes": "Configure credentials and set operation to read rows. Add row_number in Google Sheets output if you want update-by-row later."
     },
     {
       "parameters": {
@@ -51,7 +62,7 @@
         470,
         360
       ],
-      "notes": "Configure credentials and set operation to read rows."
+      "notes": "Configure credentials and set operation to read rows. Add row_number in Google Sheets output if you want update-by-row later."
     },
     {
       "parameters": {
@@ -116,7 +127,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const organic = ($json.organic_results || []).slice(0, 10);\nreturn organic.map((row, index) => ({ json: { timestamp: new Date().toISOString(), input_row: $item(0).$node['Pick First SERP Pending'].json.row_number || '', keyword: $item(0).$node['Pick First SERP Pending'].json.keyword || '', position: index + 1, title: row.title || '', link: row.link || row.url || '', snippet: row.snippet || row.description || '', top_entities: 'TODO: parse entities in Code node', token_count: '', mode: 'live' } }));"
+        "jsCode": "const tokenize = (text) => (String(text || '').match(/[\\u4e00-\\u9fff]{2}|[a-zA-Z0-9-]{2,}/g) || []).map((token) => token.toLowerCase());\nconst stop = new Set(['推薦', '怎麼', '完整', '指南', 'the', 'and', 'for', 'with']);\nconst classifyTheme = (text) => {\n  const source = String(text || '');\n  if (/價格|費用|資費|price|cheap/i.test(source)) return 'pricing';\n  if (/比較|評比|review|compare/i.test(source)) return 'comparison';\n  if (/速度|流量|網速|吃到飽|speed|data/i.test(source)) return 'features';\n  if (/學生|家庭|新手|family|student/i.test(source)) return 'audience';\n  return 'general';\n};\nconst organic = ($json.organic_results || []).slice(0, 10);\nreturn organic.map((row, index) => {\n  const text = [row.title, row.snippet || row.description || ''].join(' ');\n  const counts = new Map();\n  tokenize(text).forEach((token) => {\n    if (!stop.has(token) && token.length >= 2) counts.set(token, (counts.get(token) || 0) + 1);\n  });\n  const topEntities = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([token, count]) => `${token} (${count})`).join(', ');\n  return { json: { timestamp: new Date().toISOString(), input_row: $item(0).$node['Pick First SERP Pending'].json.row_number || '', keyword: $item(0).$node['Pick First SERP Pending'].json.keyword || '', position: index + 1, title: row.title || '', link: row.link || row.url || '', snippet: row.snippet || row.description || '', top_entities: topEntities, entity_count: counts.size, entity_theme: classifyTheme(text), mode: 'live' } };\n});"
       },
       "id": "format-serp-results",
       "name": "Format SERP Results",
@@ -126,7 +137,7 @@
         1240,
         160
       ],
-      "notes": "TODO: add the same heuristic entity extraction as the Apps Script version."
+      "notes": "Uses a lightweight heuristic to approximate Apps Script entity parsing."
     },
     {
       "parameters": {
@@ -163,7 +174,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"system\",\"content\":\"Return exactly the requested sections.\"},{\"role\":\"user\",\"content\":\"Keyword: {{$json.keyword}}\\nProduct: {{$json.product}}\\nScenario: {{$json.scenario}}\\n\\nReturn sections:\\n=== ARTICLE ===\\n=== IMAGE_PROMPT_25 ===\\n=== IMAGE_PROMPT_50 ===\\n=== IMAGE_PROMPT_75 ===\\n=== QUALITY_NOTES ===\"}]}"
+        "jsonBody": "={\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"system\",\"content\":\"Return exactly the requested sections.\"},{\"role\":\"user\",\"content\":\"Keyword: {{$json.keyword}}\\nProduct: {{$json.product}}\\nScenario: {{$json.scenario}}\\nOutput folder: {{$json.output_folder || 'default'}}\\n\\nReturn sections:\\n=== ARTICLE ===\\n=== IMAGE_PROMPT_25 ===\\n=== IMAGE_PROMPT_50 ===\\n=== IMAGE_PROMPT_75 ===\\n=== QUALITY_NOTES ===\\n=== IMPROVEMENT_POINTS ===\\n=== REVISED_ARTICLE ===\"}]}"
       },
       "id": "call-openai",
       "name": "Call OpenAI",
@@ -177,7 +188,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const text = $json.choices?.[0]?.message?.content || '';\nconst grab = (name, next) => {\n  const pattern = next ? new RegExp(`===\\\\s*${name}\\\\s*===([\\\\s\\\\S]*?)===\\\\s*${next}\\\\s*===`) : new RegExp(`===\\\\s*${name}\\\\s*===([\\\\s\\\\S]*)$`);\n  const match = text.match(pattern);\n  return match ? match[1].trim() : '';\n};\nreturn [{ json: { timestamp: new Date().toISOString(), input_row: $item(0).$node['Pick First SEO Pending'].json.row_number || '', keyword: $item(0).$node['Pick First SEO Pending'].json.keyword || '', product: $item(0).$node['Pick First SEO Pending'].json.product || '', scenario: $item(0).$node['Pick First SEO Pending'].json.scenario || '', article: grab('ARTICLE', 'IMAGE_PROMPT_25'), image_prompt_25: grab('IMAGE_PROMPT_25', 'IMAGE_PROMPT_50'), image_prompt_50: grab('IMAGE_PROMPT_50', 'IMAGE_PROMPT_75'), image_prompt_75: grab('IMAGE_PROMPT_75', 'QUALITY_NOTES'), quality_notes: grab('QUALITY_NOTES'), mode: 'live' } }];"
+        "jsCode": "const text = $json.choices?.[0]?.message?.content || '';\nconst pickInput = $item(0).$node['Pick First SEO Pending'].json;\nconst grab = (name, next) => {\n  const pattern = next ? new RegExp(`===\\\\s*${name}\\\\s*===([\\\\s\\\\S]*?)===\\\\s*${next}\\\\s*===`) : new RegExp(`===\\\\s*${name}\\\\s*===([\\\\s\\\\S]*)$`);\n  const match = text.match(pattern);\n  return match ? match[1].trim() : '';\n};\nconst keyword = pickInput.keyword || '';\nconst image25 = `https://dummyimage.com/1200x675/f3f4f6/111827&text=${encodeURIComponent(keyword)}+25%25`;\nconst image50 = `https://dummyimage.com/1200x675/f3f4f6/111827&text=${encodeURIComponent(keyword)}+50%25`;\nconst image75 = `https://dummyimage.com/1200x675/f3f4f6/111827&text=${encodeURIComponent(keyword)}+75%25`;\nconst article = grab('ARTICLE', 'IMAGE_PROMPT_25');\nconst articleWithImages = [article, '', `[IMAGE_25] ${image25}`, '', `[IMAGE_50] ${image50}`, '', `[IMAGE_75] ${image75}`].join('\\n');\nreturn [{ json: { timestamp: new Date().toISOString(), input_row: pickInput.row_number || '', keyword, product: pickInput.product || '', scenario: pickInput.scenario || '', article, image_prompt_25: grab('IMAGE_PROMPT_25', 'IMAGE_PROMPT_50'), image_prompt_50: grab('IMAGE_PROMPT_50', 'IMAGE_PROMPT_75'), image_prompt_75: grab('IMAGE_PROMPT_75', 'QUALITY_NOTES'), article_with_images: articleWithImages, image_url_25: image25, image_url_50: image50, image_url_75: image75, quality_notes: grab('QUALITY_NOTES', 'IMPROVEMENT_POINTS'), improvement_points: grab('IMPROVEMENT_POINTS', 'REVISED_ARTICLE'), revised_article: grab('REVISED_ARTICLE'), output_folder: pickInput.output_folder || 'default', mode: 'live' } }];"
       },
       "id": "parse-seo-sections",
       "name": "Parse SEO Sections",
@@ -207,6 +218,22 @@
   ],
   "connections": {
     "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read SERP_Input",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read SEO_Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
       "main": [
         [
           {

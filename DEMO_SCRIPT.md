@@ -12,7 +12,15 @@ have laptop + screen-share. Built for "what did you build in a day?" prompts.
 > "SEO content teams keep doing the same loop: pick a keyword, look at
 > Google's top 10, extract recurring entities, brief a writer, generate
 > the article + image prompts + quality notes. I built a 1-day MVP that
-> automates that loop end-to-end as a Google Sheet."
+> automates that loop end-to-end with Google Sheets as the core workflow,
+> plus a thin Supabase + Vercel shell for login and run tracking."
+
+**0:10 — optional UI open (10s).** If you want the full-stack angle first,
+open the Vercel page and say:
+
+> "This page is intentionally thin. It handles sign-in and run logging,
+> but the operational source of truth is still the Sheet because that is
+> the fastest interface for the target user."
 
 **0:15 — show the input (15s).** Click `SERP_Input`, point at the row:
 `keyword=狗糧推薦, status=pending`. Say:
@@ -25,9 +33,10 @@ Switch to logs:
 
 > "Mock mode is on by default — no API key, fully offline demo.
 > The script picks the first pending row, calls SERP (or in mock, returns
-> 10 canned results), runs a tiny entity heuristic, writes 10 rows back."
+> 10 canned results), runs a tiny entity heuristic, counts entities,
+> groups each result into a theme, and writes 10 rows back."
 
-Switch to `SERP_Results`. Point at `top_entities` column.
+Switch to `SERP_Results`. Point at `top_entities`, `entity_count`, and `entity_theme`.
 
 **0:50 — show the status machine (10s).** Switch back to `SERP_Input`:
 
@@ -40,16 +49,18 @@ Switch to `SERP_Results`. Point at `top_entities` column.
 Run `generateSeoContent`. Switch to logs, then `SEO_Output`. Point at:
 
 > "One row out: the article, three image prompts at 25/50/75% of the article,
-> quality notes, mode=mock. The LLM returns a strict `===SECTION===` format
-> that's model-agnostic — works the same on OpenAI or Anthropic."
+> placeholder image URLs, quality notes, three improvement points, and a
+> revised article. The LLM returns a strict `===SECTION===` format that's
+> model-agnostic — works the same on OpenAI or Anthropic."
 
 **1:30 — close on the architecture (20s).** Open the README architecture
 diagram or the n8n JSON:
 
 > "If this graduates from internal helper to scheduled job, the same flow
-> imports into n8n — that workflow is in the repo. Trade-offs are listed
-> explicitly in the README: one row per run, heuristic entity extraction,
-> no dedupe — all deliberate, all easy to grow."
+> imports into n8n, the Vercel page becomes the lightweight operator UI,
+> and Supabase stores run history. Trade-offs are listed explicitly in the
+> README: heuristic entity extraction, placeholder image URLs, and Sheet-
+> first orchestration — all deliberate, all easy to grow."
 
 **1:50 — invite questions (10s).**
 
